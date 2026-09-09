@@ -1,0 +1,13 @@
+name = "crypto-trading"
+main = "worker.js"
+compatibility_date = "2026-09-10"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "crypto-trading-db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+[assets]
+directory = "."
+not_found_handling = "single-page-application"

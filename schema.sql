@@ -1,0 +1,219 @@
+PRAGMA foreign_keys = ON;
+
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  full_name TEXT NOT NULL,
+  phone TEXT,
+  country TEXT,
+  referral_code TEXT UNIQUE,
+  referred_by TEXT,
+  account_status TEXT NOT NULL DEFAULT 'active' CHECK(account_status IN ('active','disabled')),
+  signup_ip_hash TEXT,
+  device_fingerprint TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS profiles (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  recovery_pin_hash TEXT,
+  withdrawal_pin_hash TEXT,
+  withdrawal_address TEXT,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS wallets (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  available_minor INTEGER NOT NULL DEFAULT 0,
+  reserved_minor INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS wallet_transactions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  type TEXT NOT NULL,
+  amount_minor INTEGER NOT NULL,
+  available_after_minor INTEGER NOT NULL,
+  reserved_after_minor INTEGER NOT NULL,
+  reference_type TEXT,
+  reference_id TEXT,
+  reason TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_wallet_tx_user_date ON wallet_transactions(user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS deposits (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  network TEXT NOT NULL CHECK(network IN ('TRC20','ERC20')),
+  deposit_address TEXT NOT NULL,
+  amount_minor INTEGER NOT NULL,
+  txid TEXT NOT NULL,
+  receipt_key TEXT,
+  status TEXT NOT NULL DEFAULT 'submitted' CHECK(status IN ('submitted','reviewing','approved','rejected')),
+  admin_note TEXT,
+  submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  reviewed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_deposits_status ON deposits(status, submitted_at DESC);
+
+CREATE TABLE IF NOT EXISTS withdrawals (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  amount_minor INTEGER NOT NULL,
+  address TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','processing','completed','rejected')),
+  admin_note TEXT,
+  requested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON withdrawals(status, requested_at DESC);
+
+CREATE TABLE IF NOT EXISTS admin_users (
+  id TEXT PRIMARY KEY,
+  username TEXT UNIQUE,
+  email TEXT UNIQUE,
+  password_hash TEXT NOT NULL,
+  recovery_pin_hash TEXT,
+  role TEXT NOT NULL DEFAULT 'admin',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  is_primary INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT,
+  admin_id TEXT,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY(admin_id) REFERENCES admin_users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at);
+
+CREATE TABLE IF NOT EXISTS admin_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS trading_cycles (
+  id TEXT PRIMARY KEY,
+  starts_at TEXT NOT NULL,
+  ends_at TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'scheduled',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS trading_rounds (
+  id TEXT PRIMARY KEY,
+  cycle_id TEXT NOT NULL REFERENCES trading_cycles(id) ON DELETE CASCADE,
+  round_no INTEGER NOT NULL CHECK(round_no BETWEEN 1 AND 5),
+  enabled INTEGER NOT NULL DEFAULT 1,
+  asset TEXT NOT NULL DEFAULT 'BTC/USDT',
+  action TEXT NOT NULL DEFAULT 'BUY' CHECK(action IN ('BUY','SELL')),
+  start_at TEXT NOT NULL,
+  duration_seconds INTEGER NOT NULL DEFAULT 300,
+  profit_bps INTEGER NOT NULL DEFAULT 500,
+  fee_bps INTEGER NOT NULL DEFAULT 50,
+  rules TEXT,
+  status TEXT NOT NULL DEFAULT 'upcoming',
+  UNIQUE(cycle_id, round_no)
+);
+CREATE INDEX IF NOT EXISTS idx_rounds_start ON trading_rounds(start_at);
+
+CREATE TABLE IF NOT EXISTS trades (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  round_id TEXT NOT NULL REFERENCES trading_rounds(id),
+  action TEXT NOT NULL CHECK(action IN ('BUY','SELL')),
+  amount_minor INTEGER NOT NULL,
+  entry_price_micros INTEGER NOT NULL,
+  exit_price_micros INTEGER,
+  gross_pnl_minor INTEGER NOT NULL DEFAULT 0,
+  fee_minor INTEGER NOT NULL DEFAULT 0,
+  net_pnl_minor INTEGER NOT NULL DEFAULT 0,
+  result TEXT NOT NULL DEFAULT 'open' CHECK(result IN ('open','win','loss','flat','timed_out')),
+  started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  ended_at TEXT,
+  settled_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_trades_user_date ON trades(user_id, started_at DESC);
+
+CREATE TABLE IF NOT EXISTS bonuses (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  type TEXT NOT NULL CHECK(type IN ('deposit','manual','referral')),
+  amount_minor INTEGER NOT NULL,
+  reason TEXT,
+  reference_id TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS referrals (
+  id TEXT PRIMARY KEY,
+  referrer_id TEXT NOT NULL REFERENCES users(id),
+  referred_id TEXT NOT NULL UNIQUE REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS referral_rewards (
+  id TEXT PRIMARY KEY,
+  referral_id TEXT NOT NULL REFERENCES referrals(id),
+  user_id TEXT NOT NULL REFERENCES users(id),
+  amount_minor INTEGER NOT NULL,
+  reason TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  read_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_date ON notifications(user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id TEXT PRIMARY KEY,
+  actor_type TEXT NOT NULL,
+  actor_id TEXT,
+  action TEXT NOT NULL,
+  target_type TEXT,
+  target_id TEXT,
+  metadata TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS products (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  category TEXT,
+  price_minor INTEGER NOT NULL DEFAULT 0,
+  old_price_minor INTEGER,
+  details TEXT,
+  image_urls TEXT,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT OR IGNORE INTO admin_settings(key,value) VALUES
+ ('minimum_deposit_minor','3000'),
+ ('minimum_withdrawal_minor','1000'),
+ ('deposit_bonus_min_minor','0'),
+ ('deposit_bonus_bps','0'),
+ ('referral_reward_minor','0'),
+ ('trc20_deposit_address',''),
+ ('erc20_deposit_address',''),
+ ('preferred_network','TRC20'),
+ ('whatsapp_1',''),
+ ('whatsapp_2',''),
+ ('whatsapp_3','');

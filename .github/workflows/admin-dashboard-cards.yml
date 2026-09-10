@@ -1,0 +1,43 @@
+name: Make admin dashboard summary cards clickable
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch admin dashboard
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p=Path('admin.html')
+          s=p.read_text()
+          old="async function dashboard(){try{const d=await api('/admin/summary');$('main').innerHTML='<h1>Dashboard</h1><div class=\"grid\"><div class=\"card\">Clients<div class=\"num\">'+d.summary.clients+'</div></div><div class=\"card\">Pending deposits<div class=\"num\">'+d.summary.pendingDeposits+'</div></div><div class=\"card\">Pending withdrawals<div class=\"num\">'+d.summary.pendingWithdrawals+'</div></div><div class=\"card\">Trades<div class=\"num\">'+d.summary.trades+'</div></div></div><div class=\"grid\" style=\"margin-top:13px\"><div class=\"card\">Total available wallet<div class=\"num\">'+d.summary.walletAvailable+' USDT</div></div></div>'}catch(e){$('main').innerHTML='<div class=\"notice\">'+e.message+'</div>'}}"
+          new="async function dashboard(){try{const d=await api('/admin/summary');$('main').innerHTML='<h1>Dashboard</h1><div class=\"grid\"><button class=\"card dashCard\" onclick=\"users()\">Clients<div class=\"num\">'+d.summary.clients+'</div><small class=\"muted\">View client data →</small></button><button class=\"card dashCard\" onclick=\"deposits()\">Pending deposits<div class=\"num\">'+d.summary.pendingDeposits+'</div><small class=\"muted\">View deposit requests →</small></button><button class=\"card dashCard\" onclick=\"withdrawals()\">Pending withdrawals<div class=\"num\">'+d.summary.pendingWithdrawals+'</div><small class=\"muted\">View withdrawal requests →</small></button><button class=\"card dashCard\" onclick=\"trades()\">Trades<div class=\"num\">'+d.summary.trades+'</div><small class=\"muted\">View trade data →</small></button></div><div class=\"grid\" style=\"margin-top:13px\"><div class=\"card\">Total available wallet<div class=\"num\">'+d.summary.walletAvailable+' USDT</div></div></div>'}catch(e){$('main').innerHTML='<div class=\"notice\">'+e.message+'</div>'}}"
+          if old not in s: raise SystemExit('dashboard pattern not found')
+          s=s.replace(old,new,1)
+          css=".dashCard{width:100%;text-align:left;color:var(--text);cursor:pointer;transition:transform .15s,filter .15s}.dashCard:hover{transform:translateY(-2px);filter:brightness(1.12)}"
+          s=s.replace('</style></head>',''+css+'</style></head>',1)
+          if 'async function trades()' not in s:
+              marker="async function withdrawals(){"
+              fn="async function trades(){try{const d=await api('/admin/trades');$('main').innerHTML='<div class=\"section\"><h1>Trading History</h1><button class=\"btn\" onclick=\"trades()\">Refresh</button></div><div class=\"tablewrap\"><table class=\"table\"><tr><th>Client</th><th>Round</th><th>Amount</th><th>Entry Price</th><th>Exit Price</th><th>Started</th><th>Duration</th><th>Profit / Payout</th><th>Status</th></tr>'+d.rows.map(x=>'<tr><td>'+esc(x.full_name||x.email||x.user_id||'—')+'</td><td>'+esc(x.round_no??x.round_id??'—')+'</td><td>'+fmt(x.amount_minor??x.amount??0)+' USDT</td><td>'+esc(x.entry_price??x.entry_price_micros??'—')+'</td><td>'+esc(x.exit_price??x.exit_price_micros??'—')+'</td><td>'+date(x.started_at||x.created_at)+'</td><td>'+esc(x.duration_seconds??'—')+' sec</td><td>'+fmt(x.profit_minor??x.profit??0)+' / '+fmt(x.payout_minor??x.payout??0)+' USDT</td><td><span class=\"pill\">'+esc(x.status||'—')+'</span></td></tr>').join('')+'</table></div>'}catch(e){$('main').innerHTML='<div class=\"notice\">'+e.message+'</div>'}}"
+              if marker not in s: raise SystemExit('withdrawals marker not found')
+              s=s.replace(marker,fn+'\n'+marker,1)
+          p.write_text(s)
+          PY
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add admin.html
+          git commit -m "Make admin dashboard summary cards clickable"
+          git push
+      - name: Remove patch workflow
+        run: |
+          git rm .github/workflows/admin-dashboard-cards.yml
+          git commit -m "Remove one-time dashboard card patch workflow"
+          git push

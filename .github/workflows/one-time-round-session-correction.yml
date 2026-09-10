@@ -31,10 +31,6 @@ jobs:
           new="const t=new Date(r.start_at).getTime(),e=t+60000,n=Date.now(),live=r.enabled&&Number.isFinite(t)&&n>=t&&n<e;"
           if old not in s: raise SystemExit('client round timing pattern not found')
           s=s.replace(old,new,1)
-          old="'Start: '+date(r.start_at)+' · Entry: '+(live?'OPEN NOW':'scheduled')"
-          new="'Start: '+date(r.start_at)+' · Entry: '+(live?'OPEN NOW':Date.now()<new Date(r.start_at).getTime()?'SCHEDULED':'CLOSED')"
-          if old not in s: raise SystemExit('client label pattern not found')
-          s=s.replace(old,new,1)
           old="async function start(){try{state=await api('/me');$('auth').classList.add('hidden');$('app').classList.remove('hidden');await renderHome()}catch(e){if(e.status===401){$('app').classList.add('hidden');$('auth').classList.remove('hidden');$('msg').textContent='Please sign in to continue.'}else{$('app').classList.add('hidden');$('auth').classList.remove('hidden');$('msg').textContent='Connection issue. Retrying…';setTimeout(()=>start(),1200)}}}"
           new="async function start(){for(let attempt=0;attempt<3;attempt++){try{state=await api('/me');$('auth').classList.add('hidden');$('app').classList.remove('hidden');await renderHome();return}catch(e){if(e.status===401&&attempt<2){await new Promise(x=>setTimeout(x,600));continue}if(e.status===401){$('app').classList.add('hidden');$('auth').classList.remove('hidden');$('msg').textContent='Please sign in to continue.'}else{$('app').classList.add('hidden');$('auth').classList.remove('hidden');$('msg').textContent='Connection issue. Retrying…';setTimeout(()=>start(),1200)}return}}}"
           if old not in s: raise SystemExit('client start pattern not found')
@@ -43,22 +39,22 @@ jobs:
           PY
       - name: Validate
         run: |
-          grep -q "T\${b.startTime}:00+05:00" worker.js
-          grep -q "endMs=startMs+60000" worker.js
-          grep -q "ct_client_session" worker.js
-          grep -q "ct_admin_session" worker.js
-          grep -q "e=t+60000" client.html
+          grep -q 'T\${b.startTime}:00+05:00' worker.js
+          grep -q 'endMs=startMs+60000' worker.js
+          grep -q 'ct_client_session' worker.js
+          grep -q 'ct_admin_session' worker.js
+          grep -q 'e=t+60000' client.html
       - name: Commit corrected files
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add worker.js client.html
           git diff --cached --check
-          git commit -m "Fix Pakistan round entry window and persistent sessions"
+          git commit -m 'Fix Pakistan round entry window and persistent sessions'
           git push
       - name: Remove one-time workflow
         if: success()
         run: |
           git rm .github/workflows/one-time-round-session-correction.yml
-          git commit -m "Remove one-time correction workflow"
+          git commit -m 'Remove one-time correction workflow'
           git push

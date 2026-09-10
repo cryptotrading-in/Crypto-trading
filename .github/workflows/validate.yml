@@ -17,18 +17,9 @@ jobs:
         run: node --check worker.js
       - name: Check HTML scripts
         run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const { execFileSync } = require('child_process');
-          for (const file of ['index.html','signup.html','client.html','admin.html']) {
-            const html = fs.readFileSync(file, 'utf8');
-            const scripts = [...html.matchAll(/<script[^>]*>([\\s\\S]*?)<\\/script>/gi)].map(m => m[1]);
-            if (!scripts.length) throw new Error(`${file}: no script block found`);
-            scripts.forEach((src, i) => {
-              const tmp = `/tmp/${file.replace(/[^a-z0-9]/gi,'_')}.${i}.js`;
-              fs.writeFileSync(tmp, src);
-              execFileSync(process.execPath, ['--check', tmp], {stdio:'inherit'});
-            });
-          }
-          console.log('All HTML script blocks passed syntax checks.');
-          NODE
+          set -e
+          for f in index.html signup.html client.html admin.html; do
+            python3 -c 'import re,sys; s=open(sys.argv[1],encoding="utf-8").read(); b=re.findall(r"<script[^>]*>(.*?)</script>",s,re.I|re.S); assert b, sys.argv[1]+": no script block"; [open(f"/tmp/{sys.argv[1].replace(chr(46),chr(95))}.{i}.js","w",encoding="utf-8").write(x) for i,x in enumerate(b)]' "$f"
+          done
+          for f in /tmp/*.html.*.js; do node --check "$f"; done
+          echo 'All HTML script blocks passed syntax checks.'

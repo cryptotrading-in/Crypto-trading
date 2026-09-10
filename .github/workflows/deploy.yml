@@ -13,12 +13,6 @@ jobs:
           node-version: 22
       - name: Install Wrangler
         run: npm install --global wrangler
-      - name: Inject D1 database ID
-        env:
-          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
-        run: |
-          test -n "$D1_DATABASE_ID"
-          sed -i "s/REPLACE_WITH_YOUR_D1_DATABASE_ID/$D1_DATABASE_ID/" wrangler.toml
       - name: Apply D1 migrations
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

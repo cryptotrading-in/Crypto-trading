@@ -1,0 +1,33 @@
+name: Validate
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check Worker syntax
+        run: node --check worker.js
+      - name: Check HTML scripts
+        shell: bash
+        run: |
+          set -e
+          for f in index.html client.html admin.html; do
+            python3 - "$f" <<'PY'
+import re,sys
+p=sys.argv[1]
+s=open(p,encoding='utf-8').read()
+blocks=re.findall(r'<script[^>]*>(.*?)</script>',s,re.I|re.S)
+if not blocks:
+    raise SystemExit(f'{p}: no script block found')
+for i,b in enumerate(blocks):
+    open(f'/tmp/{p}.{i}.js','w',encoding='utf-8').write(b)
+PY
+          done
+          for f in /tmp/index.html.*.js /tmp/client.html.*.js /tmp/admin.html.*.js; do node --check "$f"; done

@@ -18,8 +18,17 @@ jobs:
       - name: Check HTML scripts
         run: |
           set -e
-          for f in index.html signup.html client.html admin.html; do
+          files="signup.html client.html admin.html"
+          for f in $files; do
             python3 -c 'import re,sys; s=open(sys.argv[1],encoding="utf-8").read(); b=re.findall(r"<script[^>]*>(.*?)</script>",s,re.I|re.S); assert b, sys.argv[1]+": no script block"; [open(f"/tmp/{sys.argv[1].replace(chr(46),chr(95))}.{i}.js","w",encoding="utf-8").write(x) for i,x in enumerate(b)]' "$f"
           done
           for f in /tmp/*.html.*.js; do node --check "$f"; done
           echo 'All HTML script blocks passed syntax checks.'
+      - name: Check static landing page
+        run: |
+          set -e
+          test -s index.html
+          grep -q 'Create Account' index.html
+          grep -q 'signup.html' index.html
+          grep -q 'Five Platform Rounds' index.html
+          echo 'Landing page checks passed.'

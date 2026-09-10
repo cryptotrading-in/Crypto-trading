@@ -8,7 +8,7 @@ WHEN instr(NEW.rules,'ENTRY_PRICE=')>0 AND instr(NEW.rules,'EXIT_PRICE=')>0
 BEGIN
   UPDATE trading_rounds
   SET entry_price_micros=CAST(substr(NEW.rules,instr(NEW.rules,'ENTRY_PRICE=')+12,instr(substr(NEW.rules,instr(NEW.rules,'ENTRY_PRICE=')+12),'|')-1) AS REAL)*1000000,
-      exit_price_micros=CAST(substr(NEW.rules,instr(NEW.rules,'EXIT_PRICE=')+11,CASE WHEN instr(substr(NEW.rules,instr(NEW.rules,'EXIT_PRICE=')+11),'\n')>0 THEN instr(substr(NEW.rules,instr(NEW.rules,'EXIT_PRICE=')+11),'\n')-1 ELSE length(substr(NEW.rules,instr(NEW.rules,'EXIT_PRICE=')+11)) END) AS REAL)*1000000
+      exit_price_micros=CAST(substr(NEW.rules,instr(NEW.rules,'EXIT_PRICE=')+11,instr(substr(NEW.rules,instr(NEW.rules,'EXIT_PRICE=')+11),'|')-1) AS REAL)*1000000
   WHERE id=NEW.id;
 END;
 
@@ -18,6 +18,6 @@ WHEN instr(NEW.rules,'ENTRY_PRICE=')>0 AND instr(NEW.rules,'EXIT_PRICE=')>0
 BEGIN
   UPDATE trading_rounds
   SET entry_price_micros=CAST(substr(NEW.rules,instr(NEW.rules,'ENTRY_PRICE=')+12,instr(substr(NEW.rules,instr(NEW.rules,'ENTRY_PRICE=')+12),'|')-1) AS REAL)*1000000,
-      exit_price_micros=CAST(substr(NEW.rules,instr(NEW.rules,'EXIT_PRICE=')+11,CASE WHEN instr(substr(NEW.rules,instr(NEW.rules,'EXIT_PRICE=')+11),'\n')>0 THEN instr(substr(NEW.rules,instr(NEW.rules,'EXIT_PRICE=')+11),'\n')-1 ELSE length(substr(NEW.rules,instr(NEW.rules,'EXIT_PRICE=')+11)) END) AS REAL)*1000000
+      exit_price_micros=CAST(substr(NEW.rules,instr(NEW.rules,'EXIT_PRICE=')+11,instr(substr(NEW.rules,instr(NEW.rules,'EXIT_PRICE=')+11),'|')-1) AS REAL)*1000000
   WHERE id=NEW.id;
 END;

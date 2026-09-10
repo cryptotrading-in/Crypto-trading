@@ -5,7 +5,7 @@ async function hash(v,s=crypto.randomUUID()){const e=new TextEncoder(),k=await c
 async function verify(v,x){if(!x||!x.includes(':'))return false;const p=x.split(':');return (await hash(v,p[0]))===x}
 const setCookie=(sid,max,name='ct_session')=>`${name}=${encodeURIComponent(sid)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${max}; Priority=High`;
 const clearCookie=(name='ct_session')=>`${name}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
-const cookieValue=(r,name)=>r.headers.get('Cookie')?.match(new RegExp('(?:^|;\s*)'+name.replace(/[.*+?^${}()|[\]\]/g,'\$&')+'=([^;]+)'))?.[1]||null;
+const cookieValue=(r,name)=>r.headers.get('Cookie')?.match(new RegExp('(?:^|;\\s*)'+name.replace(/[.*+?^${}()|[\\]\\]/g,'\\$&')+'=([^;]+)'))?.[1]||null;
 async function body(r){try{return await r.json()}catch{return {}}}
 async function setting(db,k,f=''){const x=await db.prepare('SELECT value FROM admin_settings WHERE key=?').bind(k).first();return x?.value??f}
 async function sess(r,e,primary='ct_session'){const v=cookieValue(r,primary);if(!v)return null;const s=await e.DB.prepare('SELECT * FROM sessions WHERE id=? AND expires_at>?').bind(decodeURIComponent(v),now()).first();if(!s)return null;await e.DB.prepare('UPDATE sessions SET expires_at=? WHERE id=?').bind(new Date(Date.now()+2592000000).toISOString(),s.id).run();return s}

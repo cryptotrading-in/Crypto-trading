@@ -1,0 +1,38 @@
+name: Live Smoke Test v2
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [Deploy Cloudflare]
+    types: [completed]
+jobs:
+  smoke:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Public pages
+        run: |
+          set -euo pipefail
+          base='https://crypto-trading.bbrihashmi.workers.dev'
+          for path in / /index.html /signup.html /client.html /admin.html; do
+            curl --compressed -fsS "$base$path" -o /tmp/page
+            test -s /tmp/page
+            echo "PASS $path"
+          done
+      - name: Client signup and session
+        run: |
+          set -euo pipefail
+          base='https://crypto-trading.bbrihashmi.workers.dev'
+          email="smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}@example.invalid"
+          payload=$(printf '{"fullName":"Live Smoke Test","email":"%s","password":"SmokeTest-Only-2026!","recoveryPin":"1234"}' "$email")
+          curl --compressed -fsS -c /tmp/cookies -X POST "$base/api/signup" -H 'content-type: application/json' --data "$payload" -o /tmp/signup.json
+          grep -q '"ok":true' /tmp/signup.json
+          curl --compressed -fsS -b /tmp/cookies "$base/api/me" -o /tmp/me.json
+          grep -q '"ok":true' /tmp/me.json
+          test "$(python3 -c 'import json; print(len(json.load(open("/tmp/me.json"))["rounds"]))')" = 5
+          echo 'PASS signup + session + exactly 5 rounds'
+      - name: Admin protection
+        run: |
+          set -euo pipefail
+          code=$(curl --compressed -sS -o /tmp/admin.json -w '%{http_code}' 'https://crypto-trading.bbrihashmi.workers.dev/api/admin/me')
+          test "$code" = 401
+          echo 'PASS admin protected'

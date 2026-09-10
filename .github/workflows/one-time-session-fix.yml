@@ -41,10 +41,6 @@ jobs:
           old="const t=new Date(r.start_at).getTime(),live=r.enabled&&Date.now()>=t&&Date.now()<=t+60000;"
           new="const t=new Date(r.start_at).getTime(),e=new Date(r.cycle_end).getTime(),n=Date.now(),live=r.enabled&&Number.isFinite(t)&&Number.isFinite(e)&&n>=t&&n<=e;"
           if old not in s: raise SystemExit('round timing pattern not found')
-          s=s.replace(old,new,1)
-          old="'Start: '+date(r.start_at)+' · Entry: '+(live?'OPEN NOW':'scheduled')"
-          new="'Start: '+date(r.start_at)+' · Entry: '+(live?'OPEN NOW':Date.now()<new Date(r.start_at).getTime()?'SCHEDULED':'CLOSED')"
-          if old not in s: raise SystemExit('round label pattern not found')
           s=s.replace(old,new,1); p.write_text(s)
           p=Path('admin.html'); s=p.read_text()
           old="const $=x=>document.getElementById(x);const api=async(path,opt={})=>{const r=await fetch('/api'+path,{...opt,headers:{'content-type':'application/json',...(opt.headers||{})}});const d=await r.json();if(!r.ok||d.ok===false)throw Error(d.error||'Request failed');return d};"

@@ -1,0 +1,64 @@
+name: One-time round/session correction
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply targeted corrections
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p=Path('worker.js'); s=p.read_text()
+          reps=[
+            ("async function sess(r,e,primary='ct_session',legacy=''){for(const name of [primary,legacy].filter(Boolean)){const v=cookieValue(r,name);if(!v)continue;const s=await e.DB.prepare('SELECT * FROM sessions WHERE id=? AND expires_at>?').bind(decodeURIComponent(v),now()).first();if(s){await e.DB.prepare('UPDATE sessions SET expires_at=? WHERE id=?').bind(new Date(Date.now()+2592000000).toISOString(),s.id).run();return s}}return null}", "async function sess(r,e,primary='ct_session'){const v=cookieValue(r,primary);if(!v)return null;const s=await e.DB.prepare('SELECT * FROM sessions WHERE id=? AND expires_at>?').bind(decodeURIComponent(v),now()).first();if(!s)return null;await e.DB.prepare('UPDATE sessions SET expires_at=? WHERE id=?').bind(new Date(Date.now()+2592000000).toISOString(),s.id).run();return s}"),
+            ("async function client(r,e){const s=await sess(r,e,'ct_client_session','ct_session');if(!s?.user_id)throw Error('AUTH_REQUIRED');return s}\nasync function admin(r,e){const s=await sess(r,e,'ct_admin_session','ct_session');if(!s?.admin_id)throw Error('ADMIN_REQUIRED');return s}", "async function client(r,e){const s=await sess(r,e,'ct_client_session');if(!s?.user_id)throw Error('AUTH_REQUIRED');return s}\nasync function admin(r,e){const s=await sess(r,e,'ct_admin_session');if(!s?.admin_id)throw Error('ADMIN_REQUIRED');return s}"),
+            ("const start=(b.startDate&&b.startTime)?new Date(`${b.startDate}T${b.startTime}:00Z`).toISOString():cur.start_at;", "const start=(b.startDate&&b.startTime)?new Date(`${b.startDate}T${b.startTime}:00+05:00`).toISOString():cur.start_at;"),
+            ("const startMs=new Date(round.start_at).getTime(),endMs=new Date(round.cycle_end).getTime(),nm=Date.now();if(!Number.isFinite(startMs)||!Number.isFinite(endMs))return fail('Round schedule is not configured correctly.',409);if(nm<startMs)return fail('This round has not started yet.');if(nm>endMs)return fail('Entry window is closed.');", "const startMs=new Date(round.start_at).getTime(),endMs=startMs+60000,nm=Date.now();if(!Number.isFinite(startMs))return fail('Round schedule is not configured correctly.',409);if(nm<startMs)return fail('This round has not started yet.');if(nm>=endMs)return fail('Entry window is closed.');"),
+          ]
+          for old,new in reps:
+            if old not in s: raise SystemExit('worker pattern not found: '+old[:100])
+            s=s.replace(old,new,1)
+          p.write_text(s)
+          p=Path('client.html'); s=p.read_text()
+          old="const t=new Date(r.start_at).getTime(),e=new Date(r.cycle_end).getTime(),n=Date.now(),live=r.enabled&&Number.isFinite(t)&&Number.isFinite(e)&&n>=t&&n<=e;"
+          new="const t=new Date(r.start_at).getTime(),e=t+60000,n=Date.now(),live=r.enabled&&Number.isFinite(t)&&n>=t&&n<e;"
+          if old not in s: raise SystemExit('client round timing pattern not found')
+          s=s.replace(old,new,1)
+          old="'Start: '+date(r.start_at)+' · Entry: '+(live?'OPEN NOW':'scheduled')"
+          new="'Start: '+date(r.start_at)+' · Entry: '+(live?'OPEN NOW':Date.now()<new Date(r.start_at).getTime()?'SCHEDULED':'CLOSED')"
+          if old not in s: raise SystemExit('client label pattern not found')
+          s=s.replace(old,new,1)
+          old="async function start(){try{state=await api('/me');$('auth').classList.add('hidden');$('app').classList.remove('hidden');await renderHome()}catch(e){if(e.status===401){$('app').classList.add('hidden');$('auth').classList.remove('hidden');$('msg').textContent='Please sign in to continue.'}else{$('app').classList.add('hidden');$('auth').classList.remove('hidden');$('msg').textContent='Connection issue. Retrying…';setTimeout(()=>start(),1200)}}}"
+          new="async function start(){for(let attempt=0;attempt<3;attempt++){try{state=await api('/me');$('auth').classList.add('hidden');$('app').classList.remove('hidden');await renderHome();return}catch(e){if(e.status===401&&attempt<2){await new Promise(x=>setTimeout(x,600));continue}if(e.status===401){$('app').classList.add('hidden');$('auth').classList.remove('hidden');$('msg').textContent='Please sign in to continue.'}else{$('app').classList.add('hidden');$('auth').classList.remove('hidden');$('msg').textContent='Connection issue. Retrying…';setTimeout(()=>start(),1200)}return}}}"
+          if old not in s: raise SystemExit('client start pattern not found')
+          s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+      - name: Validate
+        run: |
+          grep -q "T\${b.startTime}:00+05:00" worker.js
+          grep -q "endMs=startMs+60000" worker.js
+          grep -q "ct_client_session" worker.js
+          grep -q "ct_admin_session" worker.js
+          grep -q "e=t+60000" client.html
+      - name: Commit corrected files
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add worker.js client.html
+          git diff --cached --check
+          git commit -m "Fix Pakistan round entry window and persistent sessions"
+          git push
+      - name: Remove one-time workflow
+        if: success()
+        run: |
+          git rm .github/workflows/one-time-round-session-correction.yml
+          git commit -m "Remove one-time correction workflow"
+          git push

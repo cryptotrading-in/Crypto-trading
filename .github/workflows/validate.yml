@@ -4,6 +4,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+
 jobs:
   syntax:
     runs-on: ubuntu-latest
@@ -15,19 +16,19 @@ jobs:
       - name: Check Worker syntax
         run: node --check worker.js
       - name: Check HTML scripts
-        shell: bash
         run: |
-          set -e
-          for f in index.html client.html admin.html; do
-            python3 - "$f" <<'PY'
-import re,sys
-p=sys.argv[1]
-s=open(p,encoding='utf-8').read()
-blocks=re.findall(r'<script[^>]*>(.*?)</script>',s,re.I|re.S)
-if not blocks:
-    raise SystemExit(f'{p}: no script block found')
-for i,b in enumerate(blocks):
-    open(f'/tmp/{p}.{i}.js','w',encoding='utf-8').write(b)
-PY
-          done
-          for f in /tmp/index.html.*.js /tmp/client.html.*.js /tmp/admin.html.*.js; do node --check "$f"; done
+          node <<'NODE'
+          const fs = require('fs');
+          const { execFileSync } = require('child_process');
+          for (const file of ['index.html','signup.html','client.html','admin.html']) {
+            const html = fs.readFileSync(file, 'utf8');
+            const scripts = [...html.matchAll(/<script[^>]*>([\\s\\S]*?)<\\/script>/gi)].map(m => m[1]);
+            if (!scripts.length) throw new Error(`${file}: no script block found`);
+            scripts.forEach((src, i) => {
+              const tmp = `/tmp/${file.replace(/[^a-z0-9]/gi,'_')}.${i}.js`;
+              fs.writeFileSync(tmp, src);
+              execFileSync(process.execPath, ['--check', tmp], {stdio:'inherit'});
+            });
+          }
+          console.log('All HTML script blocks passed syntax checks.');
+          NODE

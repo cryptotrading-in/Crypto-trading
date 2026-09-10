@@ -1,0 +1,51 @@
+name: Apply session and PWA
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply fixes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('worker.js');s=p.read_text()
+          old="async function sess(r,e){const v=r.headers.get('Cookie')?.match(/ct_session=([^;]+)/)?.[1];return v?await e.DB.prepare('SELECT * FROM sessions WHERE id=? AND expires_at>?').bind(decodeURIComponent(v),now()).first():null}"
+          new="async function sess(r,e){const v=r.headers.get('Cookie')?.match(/ct_session=([^;]+)/)?.[1];if(!v)return null;const s=await e.DB.prepare('SELECT * FROM sessions WHERE id=? AND expires_at>?').bind(decodeURIComponent(v),now()).first();if(s)await e.DB.prepare('UPDATE sessions SET expires_at=? WHERE id=?').bind(new Date(Date.now()+2592000000).toISOString(),s.id).run();return s}"
+          if old not in s: raise SystemExit('worker session function not found')
+          p.write_text(s.replace(old,new))
+
+          p=Path('client.html');s=p.read_text()
+          s=s.replace('<title>CryptoTrade Client</title>','<title>CryptoTrade Client</title><link rel="manifest" href="/manifest.json"><meta name="theme-color" content="#070b12">')
+          s=s.replace('<div id="auth" class="auth card hidden">','<div id="auth" class="auth card hidden"><button id="installAuth" class="btn hidden" type="button" onclick="installApp()" style="width:100%;margin-bottom:10px">Install App</button>')
+          s=s.replace('<span id="balanceTop" class="muted" style="margin-left:auto"></span>','<span id="balanceTop" class="muted" style="margin-left:auto"></span><button id="installTop" class="btn hidden" type="button" onclick="installApp()" style="margin-left:8px">Install App</button>')
+          old="const $=id=>document.getElementById(id);const api=async(p,o={})=>{const r=await fetch('/api'+p,{...o,cache:'no-store',headers:{'content-type':'application/json',...(o.headers||{})}});let d={};try{d=await r.json()}catch{}if(!r.ok||d.ok===false)throw Error(d.error||'Request failed');return d};"
+          new="const $=id=>document.getElementById(id);let deferredInstall=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e;$('installAuth')?.classList.remove('hidden');$('installTop')?.classList.remove('hidden')});window.addEventListener('appinstalled',()=>{deferredInstall=null;$('installAuth')?.classList.add('hidden');$('installTop')?.classList.add('hidden')});async function installApp(){if(!deferredInstall)return;deferredInstall.prompt();try{await deferredInstall.userChoice}catch{}deferredInstall=null;$('installAuth')?.classList.add('hidden');$('installTop')?.classList.add('hidden')}const api=async(p,o={})=>{const r=await fetch('/api'+p,{...o,credentials:'same-origin',cache:'no-store',headers:{'content-type':'application/json',...(o.headers||{})}});let d={};try{d=await r.json()}catch{}if(!r.ok||d.ok===false){const e=Error(d.error||'Request failed');e.status=r.status;throw e}return d};"
+          if old not in s: raise SystemExit('client api block not found')
+          s=s.replace(old,new)
+          old="async function start(){try{state=await api('/me');$('auth').classList.add('hidden');$('app').classList.remove('hidden');await renderHome()}catch(e){$('app').classList.add('hidden');$('auth').classList.remove('hidden');$('msg').textContent='Please sign in to continue.'}}\nasync function refresh(){state=await api('/me');$('balanceTop').textContent='Available '+money(state.wallet?.available)+' USDT';return state}"
+          new="async function start(){let last=null;for(let i=0;i<3;i++){try{state=await api('/me');$('auth').classList.add('hidden');$('app').classList.remove('hidden');await renderHome();return}catch(e){last=e;if(e.status===401)break;await new Promise(r=>setTimeout(r,700))}}if(last?.status===401){$('app').classList.add('hidden');$('auth').classList.remove('hidden');$('msg').textContent='Please sign in to continue.'}else{$('app').classList.remove('hidden');$('auth').classList.add('hidden');$('main').innerHTML='<div class="notice">Connection is taking longer than usual. Your session was not signed out. <button class="btn" onclick="start()">Retry</button></div>'}}\nasync function refresh(){try{state=await api('/me');$('balanceTop').textContent='Available '+money(state.wallet?.available)+' USDT';return state}catch(e){if(e.status===401){showAuth('Your session has ended. Please sign in again.');throw e}if(state){$('balanceTop').textContent='Available '+money(state.wallet?.available)+' USDT';return state}throw e}}"
+          if old not in s: raise SystemExit('client start block not found')
+          s=s.replace(old,new)
+          s=s.replace('</script></body></html>','if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));}\n</script></body></html>',1)
+          p.write_text(s)
+
+          Path('manifest.json').write_text('''{\n  "name":"CryptoTrade",\n  "short_name":"CryptoTrade",\n  "start_url":"/client.html",\n  "scope":"/",\n  "display":"standalone",\n  "background_color":"#070b12",\n  "theme_color":"#070b12",\n  "description":"CryptoTrade client trading and wallet app",\n  "icons":[{"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]\n}\n''')
+          Path('icon.svg').write_text('''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#070b12"/><circle cx="256" cy="256" r="170" fill="#0ea5e9"/><path d="M286 91 170 282h83l-27 139 116-191h-83z" fill="white"/></svg>\n''')
+          Path('sw.js').write_text('''const CACHE="cryptotrade-shell-v1";const SHELL=["/","/index.html","/client.html","/manifest.json","/icon.svg"];self.addEventListener("install",e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()))});self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});self.addEventListener("fetch",e=>{const u=new URL(e.request.url);if(u.origin!==location.origin||e.request.method!=="GET"||u.pathname.startsWith("/api/"))return;e.respondWith(fetch(e.request).then(r=>{const c=r.clone();caches.open(CACHE).then(x=>x.put(e.request,c));return r}).catch(()=>caches.match(e.request).then(r=>r||caches.match("/client.html")))});\n''')
+          Path('.github/workflows/apply-session-pwa.yml').unlink()
+          Path('.github/workflows/fix-session-pwa.yml').unlink()
+          PY
+      - name: Commit fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add worker.js client.html manifest.json icon.svg sw.js .github/workflows/apply-session-pwa.yml .github/workflows/fix-session-pwa.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "Fix normal session persistence and add PWA install"
+          git push

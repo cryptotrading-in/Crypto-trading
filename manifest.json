@@ -1,0 +1,11 @@
+{
+  "name": "CryptoTrade",
+  "short_name": "CryptoTrade",
+  "start_url": "/client.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#070b12",
+  "theme_color": "#070b12",
+  "description": "CryptoTrade client trading and wallet app",
+  "icons": [{"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}

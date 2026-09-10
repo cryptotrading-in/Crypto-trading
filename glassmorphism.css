@@ -1,0 +1,16 @@
+/* CryptoTrade 2026 Glassmorphism UI layer — visual only */
+:root{--glass-bg:rgba(15,23,42,.58);--glass-bg-strong:rgba(15,23,42,.78);--glass-line:rgba(255,255,255,.12);--glass-line-soft:rgba(255,255,255,.07);--glass-shadow:0 18px 55px rgba(0,0,0,.28);--glass-blur:18px}
+body{background:radial-gradient(circle at 12% 8%,rgba(56,189,248,.16),transparent 30%),radial-gradient(circle at 88% 18%,rgba(139,92,246,.16),transparent 32%),radial-gradient(circle at 50% 100%,rgba(34,197,94,.08),transparent 34%),#050812!important}
+.bar,.nav{background:rgba(7,12,22,.58)!important;border-color:var(--glass-line)!important;backdrop-filter:blur(var(--glass-blur)) saturate(145%);-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(145%);box-shadow:0 10px 35px rgba(0,0,0,.18)}
+.card,.visual,.stat{background:linear-gradient(145deg,rgba(30,41,59,.58),rgba(15,23,42,.42))!important;border-color:var(--glass-line)!important;box-shadow:var(--glass-shadow);backdrop-filter:blur(var(--glass-blur)) saturate(135%);-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(135%)}
+.card:hover,.visual:hover{border-color:rgba(255,255,255,.18)!important;box-shadow:0 22px 65px rgba(0,0,0,.34);transform:translateY(-1px);transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}
+.btn{background:rgba(30,41,59,.48)!important;border-color:var(--glass-line)!important;box-shadow:0 8px 24px rgba(0,0,0,.16);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.primary{background:linear-gradient(135deg,rgba(56,189,248,.92),rgba(59,130,246,.78))!important;border-color:rgba(125,211,252,.38)!important;box-shadow:0 10px 30px rgba(56,189,248,.18)}
+input,select,textarea{background:rgba(2,6,23,.48)!important;border-color:var(--glass-line)!important}
+.badge,.pill,.tag{background:rgba(51,65,85,.42)!important;border:1px solid var(--glass-line-soft)}
+.side,.menu{background:rgba(7,12,22,.68)!important;border-color:var(--glass-line)!important;backdrop-filter:blur(22px) saturate(145%);-webkit-backdrop-filter:blur(22px) saturate(145%);box-shadow:18px 0 50px rgba(0,0,0,.25)}
+.side button,.menu button{transition:background .2s ease,color .2s ease,transform .2s ease}.side button:hover,.side button.active,.menu button:hover,.menu button.active{background:rgba(56,189,248,.10)!important;color:#fff!important;transform:translateX(2px)}
+.notice{background:rgba(120,53,15,.25)!important;border-color:rgba(245,158,11,.28)!important;backdrop-filter:blur(12px)}
+.tradeOverlay{background:rgba(2,6,23,.72)!important;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+@media(max-width:650px){.card{box-shadow:0 12px 35px rgba(0,0,0,.24)}.btn{min-height:42px}.side,.menu{backdrop-filter:blur(24px) saturate(145%);-webkit-backdrop-filter:blur(24px) saturate(145%)}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important;animation:none!important}}

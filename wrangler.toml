@@ -5,7 +5,7 @@ compatibility_date = "2026-09-10"
 [[d1_databases]]
 binding = "DB"
 database_name = "crypto-trading-db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "6e70486e-898e-400b-9ff1-12147d751464"
 migrations_dir = "migrations"
 
 [assets]

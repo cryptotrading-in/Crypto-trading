@@ -1,7 +1,7 @@
 const json=(d,s=200,h={})=>new Response(JSON.stringify(d),{status:s,headers:{'content-type':'application/json; charset=utf-8',...h}});
 const ok=(d={},h={})=>json({ok:true,...d},200,h),fail=(e,s=400)=>json({ok:false,error:e},s);
 const id=()=>crypto.randomUUID(),now=()=>new Date().toISOString(),money=n=>Math.round(Number(n||0)*100),fmt=n=>(Number(n||0)/100).toFixed(2);
-async function hash(v,s=crypto.randomUUID()){const e=new TextEncoder(),k=await crypto.subtle.importKey('raw',e.encode(String(v)),'PBKDF2',false,['deriveBits']),b=await crypto.subtle.deriveBits({name:'PBKDF2',salt:e.encode(s),iterations:120000,hash:'SHA-256'},k,256);return s+':'+[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+async function hash(v,s=crypto.randomUUID()){const e=new TextEncoder(),k=await crypto.subtle.importKey('raw',e.encode(String(v)),'PBKDF2',false,['deriveBits']),b=await crypto.subtle.deriveBits({name:'PBKDF2',salt:e.encode(s),iterations:100000,hash:'SHA-256'},k,256);return s+':'+[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
 async function verify(v,x){if(!x||!x.includes(':'))return false;const p=x.split(':');return (await hash(v,p[0]))===x}
 const setCookie=(sid,max)=>`ct_session=${encodeURIComponent(sid)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${max}`;
 const clearCookie='ct_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0';

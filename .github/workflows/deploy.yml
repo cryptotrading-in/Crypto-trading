@@ -3,8 +3,6 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-permissions:
-  contents: write
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -15,55 +13,6 @@ jobs:
           node-version: 22
       - name: Install Wrangler
         run: npm install --global wrangler
-      - name: Apply approved referral implementation
-        if: ${{ !contains(github.event.head_commit.message, 'Complete deposit-qualified referral system') }}
-        shell: bash
-        run: |
-          python3 <<'PY'
-          from pathlib import Path
-          import re
-          wf=Path('.github/workflows/final-referral-fix.yml').read_text()
-          m=re.search(r"python3 <<'PY'\n(.*?)\n          PY",wf,re.S)
-          if not m: raise SystemExit('Referral patch payload not found')
-          lines=m.group(1).splitlines()
-          script='\n'.join(line[10:] if line.startswith('          ') else line for line in lines)
-          script=script.replace("anchor=\"if(path==='/api/signup'\"", "anchor=\"if(p==='/api/signup'\"")
-          script=script.replace("routes=\"if(path==='/api/referrals'", "routes=\"if(p==='/api/referrals'")
-          script=script.replace(").results||[]);for", ").results||[];for")
-          script=script.replace(").results||[]),paid=", ").results||[],paid=")
-          exec(compile(script,'referral-patch','exec'),{})
-          # The existing navigation loader is an external script tag; keep referral functions in real inline scripts.
-          for name in ('client.html','admin.html'):
-              p=Path(name); s=p.read_text()
-              marker='<script src="/navigation.js">'
-              if marker in s and 'async function referrals()' in s:
-                  s=s.replace(marker,'<script>',1)
-                  if '</script></body></html>' in s:
-                      s=s.replace('</script></body></html>','</script><script src="/navigation.js"></script></body></html>',1)
-                  elif '</body></html>' in s:
-                      s=s.replace('</body></html>','<script src="/navigation.js"></script></body></html>',1)
-                  p.write_text(s)
-          PY
-      - name: Validate referral implementation
-        if: ${{ !contains(github.event.head_commit.message, 'Complete deposit-qualified referral system') }}
-        run: |
-          node --check worker.js
-          node --check navigation.js
-          grep -q "page('referrals',this)" client.html
-          grep -q "page('referrals',this)" admin.html
-          grep -q 'async function referralData' worker.js
-          grep -q 'async function referrals' client.html
-          grep -q 'async function referrals' admin.html
-          grep -q 'referralFromUrl' signup.html
-      - name: Commit referral implementation
-        if: ${{ !contains(github.event.head_commit.message, 'Complete deposit-qualified referral system') }}
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add worker.js navigation.js client.html admin.html signup.html
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'Complete deposit-qualified referral system'
-          git push
       - name: Apply D1 migrations
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

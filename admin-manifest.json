@@ -1,4 +1,5 @@
 {
+  "id": "/admin",
   "name": "CryptoTrade Admin",
   "short_name": "CryptoTrade Admin",
   "start_url": "/admin.html",

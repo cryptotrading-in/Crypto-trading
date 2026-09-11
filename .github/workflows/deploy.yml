@@ -27,6 +27,7 @@ jobs:
           script='\n'.join(line[10:] if line.startswith('          ') else line for line in lines)
           script=script.replace("anchor=\"if(path==='/api/signup'\"", "anchor=\"if(p==='/api/signup'\"")
           script=script.replace("routes=\"if(path==='/api/referrals'", "routes=\"if(p==='/api/referrals'")
+          script=script.replace(").results||[]);for", ").results||[];for")
           exec(compile(script,'referral-patch','exec'),{})
           PY
       - name: Validate referral implementation

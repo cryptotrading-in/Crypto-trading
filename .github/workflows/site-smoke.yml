@@ -1,0 +1,21 @@
+name: Site Smoke Check
+on:
+  push:
+    branches: [main]
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check deployed site
+        run: |
+          set -euxo pipefail
+          for url in \
+            https://crypto-trading.earnybycrypto.workers.dev/ \
+            https://crypto-trading.earnybycrypto.workers.dev/index.html \
+            https://crypto-trading.earnybycrypto.workers.dev/client.html \
+            https://crypto-trading.earnybycrypto.workers.dev/admin.html; do
+            echo "CHECK $url"
+            curl --fail --silent --show-error --location --max-time 20 -o /tmp/site-check "$url"
+            test -s /tmp/site-check
+          done
+          echo "SITE_SMOKE_OK"

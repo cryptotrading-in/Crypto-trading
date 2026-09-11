@@ -8,6 +8,7 @@ body{background:radial-gradient(circle at 12% 8%,rgba(56,189,248,.16),transparen
 .primary{background:linear-gradient(135deg,rgba(56,189,248,.92),rgba(59,130,246,.78))!important;border-color:rgba(125,211,252,.38)!important;box-shadow:0 10px 30px rgba(56,189,248,.18)}
 input,select,textarea{background:rgba(2,6,23,.48)!important;border-color:var(--glass-line)!important}
 .tradePanel input{color:#fff!important;caret-color:#fff!important}
+.table select{color:#fff!important;caret-color:#fff!important}
 .badge,.pill,.tag{background:rgba(51,65,85,.42)!important;border:1px solid var(--glass-line-soft)}
 .side,.menu{background:rgba(7,12,22,.68)!important;border-color:var(--glass-line)!important;backdrop-filter:blur(22px) saturate(145%);-webkit-backdrop-filter:blur(22px) saturate(145%);box-shadow:18px 0 50px rgba(0,0,0,.25)}
 .side button,.menu button{transition:background .2s ease,color .2s ease,transform .2s ease}.side button:hover,.side button.active,.menu button:hover,.menu button.active{background:rgba(56,189,248,.10)!important;color:#fff!important;transform:translateX(2px)}

@@ -32,4 +32,4 @@ async function profile(){await refresh();$('main').innerHTML='<h1>Profile</h1><d
 async function notifications(){const d=await api('/notifications');const items=d.notifications||d.items||d.rows||[];$('main').innerHTML='<h1>Notifications</h1><div class="card">'+(items.length?items.map(n=>'<p><b>'+esc(n.title||n.type||'Notification')+'</b><br>'+esc(n.message||n.body||'')+'<br><span class="muted">'+date(n.created_at)+'</span></p>').join(''):'<p class="muted">No notifications yet.</p>')+'</div>'}
 async function logout(){try{await api('/logout',{method:'POST'})}catch{}location.reload()}start();
 if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));}
-</script></body></html>
+</script><script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))}</script><!-- client-sw-registration --></body></html>

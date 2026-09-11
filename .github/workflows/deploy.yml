@@ -32,6 +32,17 @@ jobs:
           script=script.replace(").results||[]);for", ").results||[];for")
           script=script.replace(").results||[]),paid=", ").results||[],paid=")
           exec(compile(script,'referral-patch','exec'),{})
+          # The existing navigation loader is an external script tag; keep referral functions in real inline scripts.
+          for name in ('client.html','admin.html'):
+              p=Path(name); s=p.read_text()
+              marker='<script src="/navigation.js">'
+              if marker in s and 'async function referrals()' in s:
+                  s=s.replace(marker,'<script>',1)
+                  if '</script></body></html>' in s:
+                      s=s.replace('</script></body></html>','</script><script src="/navigation.js"></script></body></html>',1)
+                  elif '</body></html>' in s:
+                      s=s.replace('</body></html>','<script src="/navigation.js"></script></body></html>',1)
+                  p.write_text(s)
           PY
       - name: Validate referral implementation
         if: ${{ !contains(github.event.head_commit.message, 'Complete deposit-qualified referral system') }}
@@ -41,6 +52,8 @@ jobs:
           grep -q "page('referrals',this)" client.html
           grep -q "page('referrals',this)" admin.html
           grep -q 'async function referralData' worker.js
+          grep -q 'async function referrals' client.html
+          grep -q 'async function referrals' admin.html
           grep -q 'referralFromUrl' signup.html
       - name: Commit referral implementation
         if: ${{ !contains(github.event.head_commit.message, 'Complete deposit-qualified referral system') }}

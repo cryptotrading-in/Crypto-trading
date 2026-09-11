@@ -1,0 +1,33 @@
+name: Apply Deposit card label fix
+on:
+  workflow_dispatch:
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch client
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('client.html')
+          s=p.read_text()
+          old="<div class=\"num\">Open</div>"
+          new="<div class=\"num homeDeposit\">Deposit</div>"
+          if old not in s:
+              raise SystemExit('Expected Deposit card label not found')
+          s=s.replace(old,new,1)
+          marker='.homeAction:active{transform:scale(.99)}'
+          css='.homeAction:active{transform:scale(.99)}.homeDeposit{font-size:27px;font-weight:800}'
+          if marker not in s:
+              raise SystemExit('Expected homeAction CSS not found')
+          s=s.replace(marker,css,1)
+          p.write_text(s)
+          PY
+      - name: Commit change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add client.html
+          git commit -m "Fix Deposit card label and font size"
+          git push

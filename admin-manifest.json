@@ -1,0 +1,11 @@
+{
+  "name": "CryptoTrade Admin",
+  "short_name": "CryptoTrade Admin",
+  "start_url": "/admin.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#070b12",
+  "theme_color": "#070b12",
+  "description": "CryptoTrade administration app",
+  "icons": [{"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}

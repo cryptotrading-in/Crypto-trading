@@ -25,6 +25,8 @@ jobs:
           if not m: raise SystemExit('Referral patch payload not found')
           lines=m.group(1).splitlines()
           script='\n'.join(line[10:] if line.startswith('          ') else line for line in lines)
+          script=script.replace("anchor=\"if(path==='/api/signup'\"", "anchor=\"if(p==='/api/signup'\"")
+          script=script.replace("routes=\"if(path==='/api/referrals'", "routes=\"if(p==='/api/referrals'")
           exec(compile(script,'referral-patch','exec'),{})
           PY
       - name: Validate referral implementation

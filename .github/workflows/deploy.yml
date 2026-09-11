@@ -28,6 +28,7 @@ jobs:
           script=script.replace("anchor=\"if(path==='/api/signup'\"", "anchor=\"if(p==='/api/signup'\"")
           script=script.replace("routes=\"if(path==='/api/referrals'", "routes=\"if(p==='/api/referrals'")
           script=script.replace(").results||[]);for", ").results||[];for")
+          script=script.replace(").results||[]),paid=", ").results||[],paid=")
           exec(compile(script,'referral-patch','exec'),{})
           PY
       - name: Validate referral implementation

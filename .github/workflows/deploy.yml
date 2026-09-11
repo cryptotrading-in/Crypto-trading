@@ -19,11 +19,12 @@ jobs:
         run: |
           python3 <<'PY'
           from pathlib import Path
-          import re, textwrap
+          import re
           wf=Path('.github/workflows/final-referral-fix.yml').read_text()
           m=re.search(r"python3 <<'PY'\n(.*?)\n          PY",wf,re.S)
           if not m: raise SystemExit('Referral patch payload not found')
-          script=textwrap.dedent(m.group(1))
+          lines=m.group(1).splitlines()
+          script='\n'.join(line[10:] if line.startswith('          ') else line for line in lines)
           exec(compile(script,'referral-patch','exec'),{})
           PY
       - name: Validate referral implementation

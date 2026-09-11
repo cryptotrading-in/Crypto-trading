@@ -1,6 +1,7 @@
 name: Apply Deposit card label fix
 on:
-  workflow_dispatch:
+  push:
+    branches: [fix/deposit-card-label]
 jobs:
   patch:
     runs-on: ubuntu-latest
@@ -12,8 +13,8 @@ jobs:
           from pathlib import Path
           p=Path('client.html')
           s=p.read_text()
-          old="<div class=\"num\">Open</div>"
-          new="<div class=\"num homeDeposit\">Deposit</div>"
+          old='<div class="num">Open</div>'
+          new='<div class="num homeDeposit">Deposit</div>'
           if old not in s:
               raise SystemExit('Expected Deposit card label not found')
           s=s.replace(old,new,1)

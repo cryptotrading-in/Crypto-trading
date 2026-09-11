@@ -1,0 +1,34 @@
+name: Temporary client service worker fix
+on:
+  push:
+    branches: [fix/client-service-worker-registration]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add service worker registration
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('client.html')
+          s=p.read_text()
+          marker='<!-- client-sw-registration -->'
+          if marker not in s:
+              needle='</body>'
+              block='<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))}</script>'+marker
+              if needle not in s:
+                  raise SystemExit('closing body tag not found')
+              s=s.replace(needle,block+needle,1)
+              p.write_text(s)
+          PY
+      - name: Commit client-only fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add client.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "fix: register client service worker"
+          git push

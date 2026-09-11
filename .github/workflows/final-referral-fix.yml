@@ -10,20 +10,18 @@ permissions:
 
 jobs:
   referral:
-    if: ${{ !contains(github.event.head_commit.message, 'Complete deposit-qualified referral system') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Apply referral implementation
         run: |
           python3 <<'PY'
           from pathlib import Path
-
-          # Backend
-          p=Path('worker.js')
-          s=p.read_text()
+          # The referral implementation is applied only once. A final commit message prevents a second change.
+          if 'Complete deposit-qualified referral system' in __import__('subprocess').check_output(['git','log','-1','--pretty=%s'],text=True):
+              raise SystemExit(0)
+          p=Path('worker.js'); s=p.read_text()
           if 'async function referralData(' not in s:
               marker='async function login(r,e){'
               code=r'''async function settleReferral(e,ref,dep){const db=e.DB;if(!ref||!dep||dep.status!=='approved')return false;if((await setting(db,'referral_enabled','1'))!=='1')return false;const min=Number(await setting(db,'referral_min_deposit_minor','5000'));if(Number(dep.amount_minor||0)<min)return false;const hold=Number(await setting(db,'referral_hold_hours','0'))||0;if(hold>0&&(!dep.reviewed_at||Date.now()-new Date(dep.reviewed_at).getTime()<hold*3600000))return false;const reward=Number(await setting(db,'referral_reward_minor','500'));if(reward<=0||await db.prepare('SELECT id FROM referral_rewards WHERE referral_id=?').bind(ref.id).first())return false;const wal=await db.prepare('SELECT * FROM wallets WHERE user_id=?').bind(ref.referrer_id).first();if(!wal)return false;const t=now();const upd=await db.prepare("UPDATE referrals SET status='qualified',qualified_at=?,rewarded_at=? WHERE id=? AND status='pending'").bind(t,t,ref.id).run();if(Number(upd.meta?.changes||0)!==1)return false;await db.batch([db.prepare("INSERT INTO referral_rewards(id,referral_id,user_id,amount_minor,reason,reference_id,status,qualified_deposit_id) VALUES(?,?,?,?,?,?,?,?)").bind(id(),ref.id,ref.referrer_id,reward,'Qualified referral reward',dep.id,'paid',dep.id),db.prepare('UPDATE wallets SET available_minor=available_minor+?,updated_at=? WHERE user_id=?').bind(reward,t,ref.referrer_id),db.prepare("INSERT INTO bonuses(id,user_id,type,amount_minor,reason,reference_id) VALUES(?,?,?,?,?,?)").bind(id(),ref.referrer_id,'referral',reward,'Qualified referral reward',ref.id),db.prepare("INSERT INTO wallet_transactions(id,user_id,type,amount_minor,available_after_minor,reserved_after_minor,reference_type,reference_id,reason) VALUES(?,?,?,?,?,?,?,?,?)").bind(id(),ref.referrer_id,'referral_reward',reward,Number(wal.available_minor||0)+reward,Number(wal.reserved_minor||0),'referral',ref.id,'Qualified referral reward'),db.prepare("INSERT INTO notifications(id,user_id,type,title,body) VALUES(?,?,?,?,?)").bind(id(),ref.referrer_id,'referral','Referral reward credited',`Your referral qualified after an approved deposit. ${fmt(reward)} USDT has been added to your wallet.`)]);return true}
@@ -35,14 +33,12 @@ async function adminReferralSettings(r,e){await admin(r,e);const b=await body(r)
               s=s.replace(marker,code+marker,1)
           if '/api/admin/referrals' not in s:
               anchor="if(path==='/api/signup'"
-              routes="if(path==='/api/referrals'&&r.method==='GET')return referralData(r,e);if(path==='/api/admin/referrals'&&r.method==='GET')return adminReferrals(r,e);if(path==='/api/admin/referral-settings'&&r.method==='POST')return adminReferralSettings(r,e);"
+              routes="if(path==='/api/referrals'&&m==='GET')return referralData(r,e);if(path==='/api/admin/referrals'&&m==='GET')return adminReferrals(r,e);if(path==='/api/admin/referral-settings'&&m==='POST')return adminReferralSettings(r,e);"
               if anchor not in s: raise SystemExit('signup route missing')
               s=s.replace(anchor,routes+anchor,1)
           p.write_text(s)
 
-          # Navigation
-          p=Path('navigation.js')
-          n=p.read_text()
+          p=Path('navigation.js'); n=p.read_text()
           n=n.replace("const clientRoutes=['home','markets','wallet','deposit','withdraw','trading','profile','notifications']","const clientRoutes=['home','markets','wallet','deposit','withdraw','trading','profile','notifications','referrals']")
           n=n.replace("const adminRoutes=['dashboard','users','wallet','deposits','withdrawals','rounds','trades']","const adminRoutes=['dashboard','users','wallet','deposits','withdrawals','rounds','trades','referrals']")
           n=n.replace("window.page=function(p,el,fromHistory){if(replay||fromHistory)return call(window.__ctOriginalPage,p,el,true);pushPage(p);return call(window.__ctOriginalPage,p,el,true)}","window.page=function(p,el,fromHistory){if(p==='referrals'){if(!replay&&!fromHistory)pushPage(p);return call(window.referrals,el)}if(replay||fromHistory)return call(window.__ctOriginalPage,p,el,true);pushPage(p);return call(window.__ctOriginalPage,p,el,true)}")
@@ -50,44 +46,37 @@ async function adminReferralSettings(r,e){await admin(r,e);const b=await body(r)
           n=n.replace("if(document.getElementById('tradeScreen'))call(window.__ctOriginalCloseTrade);if(clientRoutes.includes(s.route))call(window.__ctOriginalPage,s.route,null,true)","if(document.getElementById('tradeScreen'))call(window.__ctOriginalCloseTrade);if(s.route==='referrals')call(window.referrals,null);else if(clientRoutes.includes(s.route))call(window.__ctOriginalPage,s.route,null,true)")
           p.write_text(n)
 
-          # Client
           p=Path('client.html'); c=p.read_text()
-          if "page('referrals',this)" not in c:
-              if '</aside>' in c:c=c.replace('</aside>',"<button onclick=\"page('referrals',this)\">Refer & Earn</button></aside>",1)
+          if "page('referrals',this)" not in c and '</aside>' in c:c=c.replace('</aside>',"<button onclick=\"page('referrals',this)\">Refer & Earn</button></aside>",1)
           if 'async function referrals()' not in c:
-              fn=r'''async function referrals(){try{const d=await api('/referrals');if(!d.enabled){$('main').innerHTML='<div class="notice">Referral program is currently disabled.</div>';return}$('main').innerHTML='<h1>Refer & Earn</h1><div class="card"><h2>Invite friends</h2><p class="muted">Earn '+esc(d.settings.reward)+' USDT when a referred client makes an approved qualifying deposit of at least '+esc(d.settings.minimumDeposit)+' USDT.</p><input id="refLink" readonly value="'+esc(d.referralLink)+'"><div class="actions" style="margin-top:9px"><button class="btn primary" onclick="navigator.clipboard.writeText($(\'refLink\').value)">Copy Link</button><button class="btn" onclick="navigator.share?navigator.share({title:\'CryptoTrade Referral\',url:$(\'refLink\').value}):navigator.clipboard.writeText($(\'refLink\').value)">Share</button><button class="btn" onclick="location.href=\'https://wa.me/?text=\'+encodeURIComponent(\'Join CryptoTrade: \'+$(\'refLink\').value)">WhatsApp</button></div><p class="muted small">Your code: <b>'+esc(d.referralCode)+'</b></p></div><div class="grid" style="margin-top:13px"><div class="card">Total Referrals<div class="num">'+d.stats.total+'</div></div><div class="card">Qualified<div class="num">'+d.stats.qualified+'</div></div><div class="card">Pending<div class="num">'+d.stats.pending+'</div></div><div class="card">Earned<div class="num">'+esc(d.stats.totalEarned)+' USDT</div></div></div><div class="card" style="margin-top:13px"><h2>Referral Activity</h2>'+((d.rows||[]).length?d.rows.map(v=>'<div class="priceLine"><span>'+esc(v.full_name)+'<br><small class="muted">'+esc(v.email)+'</small></span><b class="'+(v.status==='qualified'?'green':'amber')+'">'+esc(v.status)+'</b></div>').join(''):'<p class="muted">No referrals yet.</p>')+'</div>'}catch(e){$('main').innerHTML='<div class="notice">'+esc(e.message)+'</div>}}'''
+              fn=r'''async function referrals(){try{const d=await api('/referrals');if(!d.enabled){$('main').innerHTML='<div class="notice">Referral program is currently disabled.</div>';return}$('main').innerHTML='<h1>Refer & Earn</h1><div class="card"><h2>Invite friends</h2><p class="muted">Earn '+esc(d.settings.reward)+' USDT when a referred client makes an approved qualifying deposit of at least '+esc(d.settings.minimumDeposit)+' USDT.</p><input id="refLink" readonly value="'+esc(d.referralLink)+'"><div class="row" style="margin-top:9px"><button class="btn primary" onclick="navigator.clipboard.writeText($(\'refLink\').value)">Copy Link</button><button class="btn" onclick="navigator.share?navigator.share({title:\'CryptoTrade Referral\',url:$(\'refLink\').value}):navigator.clipboard.writeText($(\'refLink\').value)">Share</button><button class="btn" onclick="location.href=\'https://wa.me/?text=\'+encodeURIComponent(\'Join CryptoTrade: \'+$(\'refLink\').value)">WhatsApp</button></div><p class="muted small">Your code: <b>'+esc(d.referralCode)+'</b></p></div><div class="grid" style="margin-top:13px"><div class="card">Total Referrals<div class="num">'+d.stats.total+'</div></div><div class="card">Qualified<div class="num">'+d.stats.qualified+'</div></div><div class="card">Pending<div class="num">'+d.stats.pending+'</div></div><div class="card">Earned<div class="num">'+esc(d.stats.totalEarned)+' USDT</div></div></div><div class="card" style="margin-top:13px"><h2>Referral Activity</h2>'+((d.rows||[]).length?d.rows.map(v=>'<div class="priceLine"><span>'+esc(v.full_name)+'<br><small class="muted">'+esc(v.email)+'</small></span><b class="'+(v.status==='qualified'?'green':'amber')+'">'+esc(v.status)+'</b></div>').join(''):'<p class="muted">No referrals yet.</p>')+'</div>'}catch(e){$('main').innerHTML='<div class="notice">'+esc(e.message)+'</div>}}'''
               c=c[:c.rfind('</script>')]+fn+'\n'+c[c.rfind('</script>'):]
           p.write_text(c)
 
-          # Admin
           p=Path('admin.html'); a=p.read_text()
-          if "page('referrals',this)" not in a:
-              if '</aside>' in a:a=a.replace('</aside>',"<button onclick=\"page('referrals',this)\">Referrals</button></aside>",1)
+          if "page('referrals',this)" not in a and '</aside>' in a:a=a.replace('</aside>',"<button onclick=\"page('referrals',this)\">Referrals</button></aside>",1)
           if 'async function referrals()' not in a:
               fn=r'''async function referrals(){try{const d=await api('/admin/referrals'),s=d.settings;$('main').innerHTML='<div class="section"><h1>Referral Management</h1><button class="btn" onclick="referrals()">Refresh</button></div><div class="grid"><div class="card">Total Referrals<div class="num">'+d.stats.total+'</div></div><div class="card">Qualified<div class="num">'+d.stats.qualified+'</div></div><div class="card">Pending<div class="num">'+d.stats.pending+'</div></div><div class="card">Rewards Paid<div class="num">'+d.stats.rewardsPaid+' USDT</div></div></div><div class="card" style="margin-top:13px"><h2>Referral Settings</h2><div class="form"><select id="re"><option value="1" '+(s.enabled?'selected':'')+'>Referral Enabled</option><option value="0" '+(!s.enabled?'selected':'')+'>Referral Disabled</option></select><input id="rr" type="number" step="0.01" value="'+esc(s.reward)+'" placeholder="Reward per qualified referral (USDT)"><input id="rm" type="number" step="0.01" value="'+esc(s.minimumDeposit)+'" placeholder="Minimum qualifying deposit (USDT)"><input id="rh" type="number" min="0" value="'+esc(s.holdHours)+'" placeholder="Hold period hours"><button class="btn primary" onclick="saveReferralSettings()">Save</button><p id="rmsg" class="muted"></p></div></div><div class="card" style="margin-top:13px"><h2>Referral Activity</h2><div class="tablewrap"><table class="table"><tr><th>Referrer</th><th>Referred</th><th>Status</th><th>Deposit</th><th>Reward</th><th>Date</th></tr>'+d.rows.map(v=>'<tr><td>'+esc(v.referrer_name)+'<br><small>'+esc(v.referrer_email)+'</small></td><td>'+esc(v.referred_name)+'<br><small>'+esc(v.referred_email)+'</small></td><td><span class="pill">'+esc(v.status)+'</span></td><td>'+fmt(v.deposit_amount||0)+' USDT</td><td>'+fmt(v.reward_amount||0)+' USDT</td><td>'+date(v.created_at)+'</td></tr>').join('')+'</table></div></div>'}catch(e){$('main').innerHTML='<div class="notice">'+esc(e.message)+'</div>}}async function saveReferralSettings(){try{await api('/admin/referral-settings',{method:'POST',body:JSON.stringify({enabled:$('re').value==='1',reward:$('rr').value,minimumDeposit:$('rm').value,holdHours:$('rh').value})});$('rmsg').textContent='Saved.';referrals()}catch(e){$('rmsg').textContent=e.message}}'''
               a=a[:a.rfind('</script>')]+fn+'\n'+a[a.rfind('</script>'):]
           p.write_text(a)
 
-          # Signup URL attribution
           p=Path('signup.html'); g=p.read_text()
           if 'referralFromUrl' not in g:
               script="<script>const referralFromUrl=new URLSearchParams(location.search).get('ref');if(referralFromUrl)window.addEventListener('DOMContentLoaded',()=>{const x=document.getElementById('ref');if(x)x.value=referralFromUrl.toUpperCase();});</script>"
               g=g.replace('</body>',script+'</body>',1) if '</body>' in g else g+'\n'+script
           p.write_text(g)
           PY
-
-      - name: Validate referral implementation
+      - name: Validate referral source
         run: |
           node --check worker.js
           node --check navigation.js
           grep -q "page('referrals',this)" client.html
           grep -q "page('referrals',this)" admin.html
-          grep -q 'async function referrals()' client.html
-          grep -q 'async function referrals()' admin.html
+          grep -q 'async function referrals' client.html
+          grep -q 'async function referrals' admin.html
           grep -q 'async function referralData' worker.js
           grep -q 'referralFromUrl' signup.html
-
-      - name: Commit final referral system
+      - name: Commit completed referral system
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com

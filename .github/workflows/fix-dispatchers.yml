@@ -1,0 +1,33 @@
+name: Fix route dispatchers
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch dispatchers
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('client.html'); s=p.read_text()
+          s,n=re.subn(r"function page\(p,el,fromHistory=false\)\{.*?\}\nfunction roundButton", "function page(p,el,fromHistory=false){closeMenu();document.querySelectorAll('#side button').forEach(x=>x.classList.remove('active'));if(el)el.classList.add('active');if(!fromHistory&&CLIENT_ROUTES.includes(p)&&history.state?.ctPage!==p)history.pushState({ctPage:p},'',location.href);const names={home:'renderHome',markets:'markets',wallet:'wallet',deposit:'deposit',withdraw:'withdraw',trading:'trading',profile:'profile',notifications:'notifications',referrals:'referrals'};const fn=window[names[p]]||window.renderHome;if(typeof fn==='function')return Promise.resolve(fn()).catch(e=>{$('main').innerHTML='<div class=\\\"notice\\\">'+esc(e.message)+'</div>'})}\nfunction roundButton",s,count=1,flags=re.S)
+          if n!=1: raise SystemExit('client dispatcher not found')
+          s=s.replace('</script></script><script src="/navigation.js"></script>','</script><script src="/navigation.js"></script>')
+          p.write_text(s)
+          p=Path('admin.html'); s=p.read_text()
+          s,n=re.subn(r"function toggleMenu\(\)\{.*?\}\nasync function boot", "function toggleMenu(){$('menu').classList.toggle('open')}function closeMenu(){$('menu').classList.remove('open')}function page(p,el){closeMenu();document.querySelectorAll('#menu button').forEach(x=>x.classList.remove('active'));if(el)el.classList.add('active');const names={dashboard:'dashboard',users:'users',wallet:'wallet',deposits:'deposits',withdrawals:'withdrawals',rounds:'rounds',trades:'trades',referrals:'referrals'};const fn=window[names[p]]||window.dashboard;if(typeof fn==='function')return Promise.resolve(fn())}\nasync function boot",s,count=1,flags=re.S)
+          if n!=1: raise SystemExit('admin dispatcher not found')
+          p.write_text(s)
+          PY
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add client.html admin.html
+          git commit -m "Fix client and admin route dispatchers"
+          git push origin main
+          git rm .github/workflows/fix-dispatchers.yml
+          git commit -m "Remove temporary dispatcher repair workflow"
+          git push origin main

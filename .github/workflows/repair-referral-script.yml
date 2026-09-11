@@ -1,0 +1,50 @@
+name: Repair referral script
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/repair-referral-script.yml'
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Repair client referral JavaScript and refresh cache
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          p=Path('client.html')
+          s=p.read_text()
+          start=s.find('<script>async function referrals(){')
+          end=s.find('</script><script src="/navigation.js"></script>', start)
+          if start < 0 or end < 0:
+              raise SystemExit('client referral script block not found')
+          safe=r'''<script>async function referrals(){try{const d=await api('/referrals');if(!d.enabled){$('main').innerHTML='<div class="notice">Referral program is currently disabled.</div>';return}const rows=(d.rows||[]).map(v=>'<div class="priceLine"><span>'+esc(v.full_name)+'<br><small class="muted">'+esc(v.email)+'</small></span><b class="'+(v.status==='qualified'?'green':'amber')+'">'+esc(v.status)+'</b></div>').join('')||'<p class="muted">No referrals yet.</p>';$('main').innerHTML='<h1>Refer & Earn</h1><div class="card"><h2>Invite friends</h2><p class="muted">Earn '+esc(d.settings.reward)+' USDT when a referred client makes an approved qualifying deposit of at least '+esc(d.settings.minimumDeposit)+' USDT.</p><input id="refLink" readonly value="'+esc(d.referralLink)+'"><div class="row" style="margin-top:9px"><button class="btn primary" onclick="copyReferralLink()">Copy Link</button><button class="btn" onclick="shareReferralLink()">Share</button><button class="btn" onclick="whatsappReferral()">WhatsApp</button></div><p class="muted small">Your code: <b>'+esc(d.referralCode)+'</b></p></div><div class="grid" style="margin-top:13px"><div class="card">Total Referrals<div class="num">'+d.stats.total+'</div></div><div class="card">Qualified<div class="num">'+d.stats.qualified+'</div></div><div class="card">Pending<div class="num">'+d.stats.pending+'</div></div><div class="card">Earned<div class="num">'+esc(d.stats.totalEarned)+' USDT</div></div></div><div class="card" style="margin-top:13px"><h2>Referral Activity</h2>'+rows+'</div>'}catch(e){$('main').innerHTML='<div class="notice">'+esc(e.message)+'</div>}}function copyReferralLink(){const v=$('refLink')?.value;if(v)navigator.clipboard?.writeText(v)}function shareReferralLink(){const v=$('refLink')?.value;if(!v)return;navigator.share?navigator.share({title:'CryptoTrade Referral',url:v}).catch(()=>{}):copyReferralLink()}function whatsappReferral(){const v=$('refLink')?.value;if(v)location.href='https://wa.me/?text='+encodeURIComponent('Join CryptoTrade: '+v)}</script>'''
+          s=s[:start]+safe+s[end:]
+          p.write_text(s)
+          sw=Path('sw.js')
+          x=sw.read_text().replace('cryptotrade-shell-v15','cryptotrade-shell-v16')
+          sw.write_text(x)
+      - name: Validate JavaScript
+        run: |
+          node --check worker.js
+          node --check navigation.js
+      - name: Commit repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add client.html sw.js
+          git commit -m "Fix referral script syntax and restore client navigation"
+          git push
+      - name: Trigger Cloudflare deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy.yml --ref main
+      - name: Remove temporary workflow
+        run: |
+          git rm .github/workflows/repair-referral-script.yml
+          git commit -m "Remove temporary referral repair workflow"
+          git push

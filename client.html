@@ -35,4 +35,4 @@ async function logout(){try{await api('/logout',{method:'POST'})}catch{}location
 if(!history.state?.ctPage)history.replaceState({ctPage:'home'},'',location.href);window.addEventListener('popstate',e=>{const p=CLIENT_ROUTES.includes(e.state?.ctPage)?e.state.ctPage:'home';page(p,null,true)});
 start();
 if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));}
-</script><script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))}</script><!-- client-sw-registration --></body></html>
+</script><script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))}</script><!-- client-sw-registration --><script src="/navigation.js"></script></body></html>

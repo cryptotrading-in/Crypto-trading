@@ -1,6 +1,9 @@
 name: Fix referral flow
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/fix-referral-flow.yml'
 permissions:
   contents: write
 jobs:
